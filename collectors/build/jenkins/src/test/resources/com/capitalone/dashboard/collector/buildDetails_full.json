@@ -5,7 +5,7 @@
   "result": "FAILURE",
   "timestamp": 1421281415000,
   "url": "https://builds.apache.org/job/Lucene-Solr-Tests-5.x-Java7/2483/",
-  "changeSet": {
+  "changeSets":[ {
     "items": [
       {
         "author": {
@@ -65,7 +65,7 @@
         "revision": 1651902
       }
     ]
-  },
+  }],
   "culprits": [
     {
       "fullName": "ab"

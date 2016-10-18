@@ -73,7 +73,7 @@ public class DefaultHudsonClient implements HudsonClient {
             "building",
             "result",
             "culprits[fullName]",
-            "changeSet[items[" + StringUtils.join(CHANGE_SET_ITEMS_TREE, ",") + "]",
+            "changeSets[items[" + StringUtils.join(CHANGE_SET_ITEMS_TREE, ",") + "]",
             "kind",
             "revisions[module,revision]]",
             "actions[lastBuiltRevision[SHA1,branch[SHA1,name]],remoteUrls]"
@@ -164,7 +164,7 @@ public class DefaultHudsonClient implements HudsonClient {
             }
             JSONParser parser = new JSONParser();
             try {
-                JSONObject buildJson = (JSONObject) parser.parse(resultJSON);
+                JSONObject buildJson = (JSONObject) (parser.parse(resultJSON));
                 Boolean building = (Boolean) buildJson.get("building");
                 // Ignore jobs that are building
                 if (!building) {
@@ -226,7 +226,10 @@ public class DefaultHudsonClient implements HudsonClient {
      * @param buildJson the build JSON object
      */
     private void addChangeSets(Build build, JSONObject buildJson) {
-        JSONObject changeSet = (JSONObject) buildJson.get("changeSet");
+        JSONArray changeSets = (JSONArray) buildJson.get("changeSets");
+        if(!changeSets.isEmpty()){
+
+        JSONObject changeSet = (JSONObject) changeSets.get(0);
         String scmType = getString(changeSet, "kind");
         Map<String, RepoBranch> revisionToUrl = new HashMap<>();
 
@@ -259,6 +262,7 @@ public class DefaultHudsonClient implements HudsonClient {
 
             scm.setNumberOfChanges(getJsonArray(jsonItem, "paths").size());
             build.getSourceChangeSet().add(scm);
+        }
         }
     }
 

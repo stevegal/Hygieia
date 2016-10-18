@@ -20,9 +20,9 @@
   "result": "FAILURE",
   "timestamp": 1473102515400,
   "url": "http://localhost:8082/job/Hygieia-Common/179/",
-  "changeSet": {
+  "changeSets": [{
     "items": [],
     "kind": null
-  },
+  }],
   "culprits": []
 }
