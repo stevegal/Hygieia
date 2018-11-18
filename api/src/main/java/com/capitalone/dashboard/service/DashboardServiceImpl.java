@@ -547,9 +547,24 @@ public class DashboardServiceImpl implements DashboardService {
         return dashboard;
     }
 
+    private void removeCollectorItemFromComponent(ObjectId collectorItemId, ObjectId componentId){
+        Component component = componentRepository.findOne(componentId);
+        CollectorItem collectorItem = collectorItemRepository.findOne(collectorItemId);
+        Collector collector = collectorRepository.findOne(collectorItem.getCollectorId());
+        CollectorType cType = collector.getCollectorType();
 
-    @Override
-    public void deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId) {
+        Map<CollectorType,List<CollectorItem>> typeToCollectorItems  = component.getCollectorItems();
+        List<CollectorItem> items = typeToCollectorItems.get(cType);
+        items.removeIf(ci -> ci.getId().equals(collectorItemId));
+
+        // delete the whole type if there is no collectorItem of that type left
+        if (items.isEmpty())
+            component.getCollectorItems().remove(cType);
+
+        componentRepository.save(component);
+    }
+
+    private void removeWidgetFromDashboard(Dashboard dashboard, Widget widget){
         int index = dashboard.getWidgets().indexOf(widget);
         dashboard.getWidgets().set(index, null);
         List<Widget> widgets = dashboard.getWidgets();
@@ -561,26 +576,38 @@ public class DashboardServiceImpl implements DashboardService {
         dashboard.setWidgets(updatedWidgets);
         dashboardRepository.save(dashboard);
 
-        String widgetName = widget.getName();
+    }
 
-        List<CollectorType> collectorTypesToDelete = new ArrayList<>();
-        CollectorType cType = findCollectorType(widgetName);
-        collectorTypesToDelete.add(cType);
-        if(widgetName.equalsIgnoreCase("codeanalysis")){
-            collectorTypesToDelete.add(CollectorType.CodeQuality);
-            collectorTypesToDelete.add(CollectorType.StaticSecurityScan);
-            collectorTypesToDelete.add(CollectorType.LibraryPolicy);
-            collectorTypesToDelete.add(CollectorType.Test);
+    private Map<ObjectId, Integer> countReferencesToCollectorItems(Dashboard dashboard){
+        List<Widget> widgets = dashboard.getWidgets();
+        Map<ObjectId, Integer> referenceMap = new HashMap<>();
+        for (Widget w:widgets){
+            ObjectId collectorItemId = w.getCollectorItemIds().get(0);
+            Integer currentCount = referenceMap.get(collectorItemId);
+            referenceMap.put(collectorItemId, (currentCount == null)? 1 : currentCount + 1);
         }
-        if(componentId!=null){
-            Component component = componentRepository.findOne(componentId);
-            for (CollectorType c:collectorTypesToDelete) {
-                component.getCollectorItems().remove(c);
+        return referenceMap;
+    }
+
+
+
+    @Override
+    public Component deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId, ObjectId collectorItemToDelete) {
+
+        // count how many Widgets refer to the same CollectorItem
+        Map<ObjectId, Integer> referenceCountMap = countReferencesToCollectorItems(dashboard);
+        Integer referenceCount = referenceCountMap.get(collectorItemToDelete);
+
+        if (componentId != null){
+            // if the collector item we want to delete is only referenced once, we are safe to remove it
+            if (referenceCount != null && referenceCount.equals(1)){
+                removeCollectorItemFromComponent(collectorItemToDelete, componentId);
             }
-
-            componentRepository.save(component);
         }
 
+        removeWidgetFromDashboard(dashboard, widget);
+
+        return componentRepository.findOne(componentId);
     }
 
 

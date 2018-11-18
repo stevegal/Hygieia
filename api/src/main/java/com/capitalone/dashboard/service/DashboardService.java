@@ -97,9 +97,10 @@ public interface DashboardService {
      *
      * @param dashboard delete widget on this Dashboard
      * @param widget Widget to delete
+     * @param collectorItemToDelete
      *
      */
-    void deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId);
+    Component deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId, ObjectId collectorItemToDelete);
 
 
 
