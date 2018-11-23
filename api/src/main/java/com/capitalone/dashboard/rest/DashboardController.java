@@ -311,14 +311,6 @@ public class DashboardController {
     public ResponseEntity<WidgetResponse> deleteWidget(@PathVariable ObjectId id,
                                                        @PathVariable ObjectId widgetId,
                                                        @RequestBody WidgetRequest request) {
-        //TODO: IMO this method is not needed when deleting. removal from component
-        // is now done in the deleteWidget method. the only thing that is still missing is the
-        // enable/disable "switch" on the CollectorItem collection on MongoDB.
-        // that can perhaps also be handled somewhere else, without a need to call the associateCollectorToComponent method.
-
-        // only things to remove... nothing to add
-//        Component component = dashboardService.associateCollectorToComponent(
-//                request.getComponentId(), null,request.getCollectorItemIds());
 
         Dashboard dashboard = dashboardService.get(id);
         Widget widget = dashboardService.getWidget(dashboard, widgetId);

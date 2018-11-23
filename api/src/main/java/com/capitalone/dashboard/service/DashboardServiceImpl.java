@@ -589,8 +589,47 @@ public class DashboardServiceImpl implements DashboardService {
         return referenceMap;
     }
 
+    /**
+     * Checks if we can disable a collector item. This stands true if and only if the collector item
+     * is not referenced by any component.
+     * @param collectorItem
+     * @param collector
+     * @return
+     */
+    private boolean canBeDisabled(CollectorItem collectorItem, Collector collector) {
+        List<Component> components = customRepositoryQuery.findComponents(collector, collectorItem);
 
+        // if the collector item is not attached to any component it is a dangling one and can be disabled.
+        return CollectionUtils.isEmpty(components);
+    }
 
+    /**
+     * Disables collector item if it is a dangling one
+     * @param collectorItemID
+     */
+    private void disableCollectorItemIfDangling(ObjectId collectorItemID){
+        CollectorItem collectorItem = collectorItemRepository.findOne(collectorItemID);
+        Collector collector = collectorRepository.findOne(collectorItem.getCollectorId());
+
+        // disable if it is a dangling one
+        if(canBeDisabled(collectorItem, collector)){
+            collectorItem.setEnabled(false);
+        }
+        collectorItemRepository.save(collectorItem);
+    }
+    /**
+     * First removes the collector item this widget is attached to from the component only if it is
+     * referenced once (a collector item can be referenced by multiple widgets).
+     * Then disables the collector item from the collector_items collection in MongoDB if the collector item
+     * is not referenced from other components.
+     * Finally removes the widget from the dashboard.
+     *
+     * @param dashboard delete widget on this Dashboard
+     * @param widget Widget to delete
+     * @param componentId component
+     * @param collectorItemToDelete collector item the widget we are deleting is attached to
+     * @return
+     */
     @Override
     public Component deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId, ObjectId collectorItemToDelete) {
 
@@ -604,6 +643,10 @@ public class DashboardServiceImpl implements DashboardService {
                 removeCollectorItemFromComponent(collectorItemToDelete, componentId);
             }
         }
+
+        // even if we remove a collectorItem from a component, that doesn't mean it has to be disabled
+        // because it might be still referenced from some other component
+        disableCollectorItemIfDangling(collectorItemToDelete);
 
         removeWidgetFromDashboard(dashboard, widget);
 
