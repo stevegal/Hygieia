@@ -547,9 +547,24 @@ public class DashboardServiceImpl implements DashboardService {
         return dashboard;
     }
 
+    private void removeCollectorItemFromComponent(ObjectId collectorItemId, ObjectId componentId){
+        Component component = componentRepository.findOne(componentId);
+        CollectorItem collectorItem = collectorItemRepository.findOne(collectorItemId);
+        Collector collector = collectorRepository.findOne(collectorItem.getCollectorId());
+        CollectorType cType = collector.getCollectorType();
 
-    @Override
-    public void deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId) {
+        Map<CollectorType,List<CollectorItem>> typeToCollectorItems  = component.getCollectorItems();
+        List<CollectorItem> items = typeToCollectorItems.get(cType);
+        items.removeIf(ci -> ci.getId().equals(collectorItemId));
+
+        // delete the whole type if there is no collectorItem of that type left
+        if (items.isEmpty())
+            component.getCollectorItems().remove(cType);
+
+        componentRepository.save(component);
+    }
+
+    private void removeWidgetFromDashboard(Dashboard dashboard, Widget widget){
         int index = dashboard.getWidgets().indexOf(widget);
         dashboard.getWidgets().set(index, null);
         List<Widget> widgets = dashboard.getWidgets();
@@ -561,26 +576,81 @@ public class DashboardServiceImpl implements DashboardService {
         dashboard.setWidgets(updatedWidgets);
         dashboardRepository.save(dashboard);
 
-        String widgetName = widget.getName();
+    }
 
-        List<CollectorType> collectorTypesToDelete = new ArrayList<>();
-        CollectorType cType = findCollectorType(widgetName);
-        collectorTypesToDelete.add(cType);
-        if(widgetName.equalsIgnoreCase("codeanalysis")){
-            collectorTypesToDelete.add(CollectorType.CodeQuality);
-            collectorTypesToDelete.add(CollectorType.StaticSecurityScan);
-            collectorTypesToDelete.add(CollectorType.LibraryPolicy);
-            collectorTypesToDelete.add(CollectorType.Test);
+    private Map<ObjectId, Integer> countReferencesToCollectorItems(Dashboard dashboard){
+        List<Widget> widgets = dashboard.getWidgets();
+        Map<ObjectId, Integer> referenceMap = new HashMap<>();
+        for (Widget w:widgets){
+            ObjectId collectorItemId = w.getCollectorItemIds().get(0);
+            Integer currentCount = referenceMap.get(collectorItemId);
+            referenceMap.put(collectorItemId, (currentCount == null)? 1 : currentCount + 1);
         }
-        if(componentId!=null){
-            Component component = componentRepository.findOne(componentId);
-            for (CollectorType c:collectorTypesToDelete) {
-                component.getCollectorItems().remove(c);
+        return referenceMap;
+    }
+
+    /**
+     * Checks if we can disable a collector item. This stands true if and only if the collector item
+     * is not referenced by any component.
+     * @param collectorItem
+     * @param collector
+     * @return
+     */
+    private boolean canBeDisabled(CollectorItem collectorItem, Collector collector) {
+        List<Component> components = customRepositoryQuery.findComponents(collector, collectorItem);
+
+        // if the collector item is not attached to any component it is a dangling one and can be disabled.
+        return CollectionUtils.isEmpty(components);
+    }
+
+    /**
+     * Disables collector item if it is a dangling one
+     * @param collectorItemID
+     */
+    private void disableCollectorItemIfDangling(ObjectId collectorItemID){
+        CollectorItem collectorItem = collectorItemRepository.findOne(collectorItemID);
+        Collector collector = collectorRepository.findOne(collectorItem.getCollectorId());
+
+        // disable if it is a dangling one
+        if(canBeDisabled(collectorItem, collector)){
+            collectorItem.setEnabled(false);
+        }
+        collectorItemRepository.save(collectorItem);
+    }
+    /**
+     * First removes the collector item this widget is attached to from the component only if it is
+     * referenced once (a collector item can be referenced by multiple widgets).
+     * Then disables the collector item from the collector_items collection in MongoDB if the collector item
+     * is not referenced from other components.
+     * Finally removes the widget from the dashboard.
+     *
+     * @param dashboard delete widget on this Dashboard
+     * @param widget Widget to delete
+     * @param componentId component
+     * @param collectorItemToDelete collector item the widget we are deleting is attached to
+     * @return
+     */
+    @Override
+    public Component deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId, ObjectId collectorItemToDelete) {
+
+        // count how many Widgets refer to the same CollectorItem
+        Map<ObjectId, Integer> referenceCountMap = countReferencesToCollectorItems(dashboard);
+        Integer referenceCount = referenceCountMap.get(collectorItemToDelete);
+
+        if (componentId != null){
+            // if the collector item we want to delete is only referenced once, we are safe to remove it
+            if (referenceCount != null && referenceCount.equals(1)){
+                removeCollectorItemFromComponent(collectorItemToDelete, componentId);
             }
-
-            componentRepository.save(component);
         }
 
+        // even if we remove a collectorItem from a component, that doesn't mean it has to be disabled
+        // because it might be still referenced from some other component
+        disableCollectorItemIfDangling(collectorItemToDelete);
+
+        removeWidgetFromDashboard(dashboard, widget);
+
+        return componentRepository.findOne(componentId);
     }
 
 

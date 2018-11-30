@@ -311,13 +311,13 @@ public class DashboardController {
     public ResponseEntity<WidgetResponse> deleteWidget(@PathVariable ObjectId id,
                                                        @PathVariable ObjectId widgetId,
                                                        @RequestBody WidgetRequest request) {
-        // only things to remove... nothing to add
-        Component component = dashboardService.associateCollectorToComponent(
-                request.getComponentId(), null,request.getCollectorItemIds());
 
         Dashboard dashboard = dashboardService.get(id);
-        Widget widget =dashboardService.getWidget(dashboard, widgetId);
-        dashboardService.deleteWidget(dashboard, widget,request.getComponentId());
+        Widget widget = dashboardService.getWidget(dashboard, widgetId);
+        ObjectId collectorItemToDelete = request.getCollectorItemIds().get(0);
+
+        //TODO: not sure if we need to return the updated component to the frontend?
+        Component component = dashboardService.deleteWidget(dashboard, widget,request.getComponentId(), collectorItemToDelete);
 
         return ResponseEntity.ok().body(new WidgetResponse(component, null));
     }
